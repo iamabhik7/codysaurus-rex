@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link ResponseHandlerHelper}.
- * Ensures 100% line coverage, including normal and error paths.
  */
 class ResponseHandlerHelperTest {
 
