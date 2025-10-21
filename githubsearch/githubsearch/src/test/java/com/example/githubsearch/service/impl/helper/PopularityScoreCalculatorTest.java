@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link PopularityScoreCalculator}.
- * Ensures 100% line coverage, including normal and error paths.
+ * 
  */
 class PopularityScoreCalculatorTest {
 
