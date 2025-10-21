@@ -1,0 +1,32 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: github-search
+
+  main:
+    web-application-type: reactive
+
+github:
+  token: 
+  api:
+    base-url: https://api.github.com
+    default-query: "Q"
+    default-per-page: 30
+    default-page: 1
+    retry:
+      attempts: 3
+      backoff-seconds: 1
+
+logging:
+  level:
+    root: INFO
+    "com.example.githubsearch": DEBUG
+
+resilience4j.ratelimiter:
+  instances:
+    githubApiLimiter:
+      limit-for-period: 5000
+      limit-refresh-period: 1h
+      timeout-duration: 0
