@@ -18,6 +18,10 @@ A modern, Spring Boot WebFlux application for searching GitHub repositories with
 
 ---
 
+**Note:** The GitHub Personal Access Token (PAT) was removed from `application.yml` (line 12) to comply with GitHub commit policies and prevent accidental exposure of secrets.
+
+---
+
 ## API Request Handling
 
 This application will successfully process requests with the following payloads:
