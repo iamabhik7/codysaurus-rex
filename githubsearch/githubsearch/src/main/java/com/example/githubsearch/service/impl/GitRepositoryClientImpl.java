@@ -77,7 +77,7 @@ public class GitRepositoryClientImpl implements GitRepositoryClient {
                                                 .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> retrySignal.failure()))
                                         .onErrorResume(e -> {
                                                 log.error("Error fetching page {}: {}", page, e.getMessage());
-                                                return Mono.error(e); // Propagate error so tests and callers see it
+                                                return Mono.error(e);
                                         });
                         })
                         .filter(response -> response != null && response.getItems() != null && !response.getItems().isEmpty())
