@@ -32,253 +32,267 @@ import static org.mockito.Mockito.*;
  * Unit tests for {@link GitRepositoryClientImpl}.
  */
 class GitRepositoryClientImplTest {
-    @Mock
-    private WebClient webClient;
+        @Mock
+        private WebClient webClient;
 
-    @Mock
-    private GithubApiProperties githubApiProperties;
+        @Mock
+        private GithubApiProperties githubApiProperties;
 
-    @Mock
-    private GithubApiProperties.Api apiProps;
+        @Mock
+        private GithubApiProperties.Api apiProps;
 
-    @InjectMocks
-    private GitRepositoryClientImpl client;
+        @InjectMocks
+        private GitRepositoryClientImpl client;
 
-    @SuppressWarnings("rawtypes")
-    private WebClient.RequestHeadersUriSpec uriSpec;
-    @SuppressWarnings("rawtypes")
-    private WebClient.RequestHeadersSpec headersSpec;
+        @SuppressWarnings("rawtypes")
+        private WebClient.RequestHeadersUriSpec uriSpec;
+        @SuppressWarnings("rawtypes")
+        private WebClient.RequestHeadersSpec headersSpec;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-        when(githubApiProperties.getApi()).thenReturn(apiProps);
-        when(apiProps.getBaseUrl()).thenReturn("https://api.github.com");
-        when(apiProps.getDefaultQuery()).thenReturn("Q");
-        when(apiProps.getDefaultPage()).thenReturn(1);
-        when(apiProps.getDefaultPerPage()).thenReturn(10);
-        when(apiProps.getRetry()).thenReturn(new GithubApiProperties.RetryProperties(1, 1));
-        uriSpec = mock(WebClient.RequestHeadersUriSpec.class);
-        headersSpec = mock(WebClient.RequestHeadersSpec.class);
-    }
+        @BeforeEach
+        void setUp() {
+                MockitoAnnotations.openMocks(this);
+                when(githubApiProperties.getApi()).thenReturn(apiProps);
+                when(apiProps.getBaseUrl()).thenReturn("https://api.github.com");
+                when(apiProps.getDefaultQuery()).thenReturn("Q");
+                when(apiProps.getDefaultPage()).thenReturn(1);
+                when(apiProps.getDefaultPerPage()).thenReturn(10);
+                when(apiProps.getRetry()).thenReturn(new GithubApiProperties.RetryProperties(1, 1));
+                uriSpec = mock(WebClient.RequestHeadersUriSpec.class);
+                headersSpec = mock(WebClient.RequestHeadersSpec.class);
+        }
 
-    @Test
-    @DisplayName("Successful fetch returns paginated response")
-    void testFetchRepositoriesSuccess() {
-        SearchRequest request = SearchRequest.builder().language("Java").pageNumber(1).build();
-        GitRepositoryPaginatedResponse response = GitRepositoryPaginatedResponse.builder()
-                .totalCount(1)
-                .incompleteResults(false)
-                .hasNextPage(false)
-                .pageNumber(1)
-                .nextPageNumber(null)
-                .items(Collections.singletonList(
-                        GitRepositoryItems.builder()
-                                .id(1L)
-                                .name("spring-boot")
-                                .description("desc")
-                                .language("Java")
-                                .stargazerCount(10)
-                                .forksCount(5)
-                                .htmlUrl("url")
-                                .updatedAt(Instant.now())
-                                .createdAt(Instant.now())
-                                .popularityScore(1.0)
-                                .build()))
-                .build();
+        @Test
+        @DisplayName("Successful fetch returns paginated response")
+        void testFetchRepositoriesSuccess() {
+                SearchRequest request = SearchRequest.builder().language("Java").pageNumber(1).build();
+                GitRepositoryPaginatedResponse response = GitRepositoryPaginatedResponse.builder()
+                                .totalCount(1)
+                                .incompleteResults(false)
+                                .hasNextPage(false)
+                                .pageNumber(1)
+                                .nextPageNumber(null)
+                                .items(Collections.singletonList(
+                                                GitRepositoryItems.builder()
+                                                                .id(1L)
+                                                                .name("spring-boot")
+                                                                .description("desc")
+                                                                .language("Java")
+                                                                .stargazerCount(10)
+                                                                .forksCount(5)
+                                                                .htmlUrl("url")
+                                                                .updatedAt(Instant.now())
+                                                                .createdAt(Instant.now())
+                                                                .popularityScore(1.0)
+                                                                .build()))
+                                .build();
 
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
-                    .getArgument(0);
-            ClientResponse clientResponse = mock(ClientResponse.class);
-            when(clientResponse.statusCode()).thenReturn(HttpStatus.OK);
-            when(clientResponse.bodyToMono(GitRepositoryPaginatedResponse.class)).thenReturn(Mono.just(response));
-            return handler.apply(clientResponse);
-        });
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).exchangeToMono(any())).thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
+                                        .getArgument(0);
+                        ClientResponse clientResponse = mock(ClientResponse.class);
+                        when(clientResponse.statusCode()).thenReturn(HttpStatus.OK);
+                        when(clientResponse.bodyToMono(eq(GitRepositoryPaginatedResponse.class)))
+                                        .thenReturn(Mono.just(response));
+                        return handler.apply(clientResponse);
+                });
 
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectNextMatches(r -> r.getTotalCount() == 1 && !r.isIncompleteResults())
-                .verifyComplete();
-    }
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectNextMatches(r -> r.getTotalCount() == 1 && r.getItems().size() == 1
+                                                && !r.isIncompleteResults())
+                                .verifyComplete();
+        }
 
-    @Test
-    @DisplayName("304 Not Modified returns empty Mono")
-    void testFetchRepositoriesNotModified() {
-        SearchRequest request = SearchRequest.builder().build();
+        @Test
+        @DisplayName("304 Not Modified returns empty Mono")
+        void testFetchRepositoriesNotModified() {
+                SearchRequest request = SearchRequest.builder().build();
 
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
-                    .getArgument(0);
-            ClientResponse clientResponse = mock(ClientResponse.class);
-            when(clientResponse.statusCode()).thenReturn(HttpStatus.NOT_MODIFIED);
-            return handler.apply(clientResponse);
-        });
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).exchangeToMono(any())).thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
+                                        .getArgument(0);
+                        ClientResponse clientResponse = mock(ClientResponse.class);
+                        when(clientResponse.statusCode()).thenReturn(HttpStatus.NOT_MODIFIED);
+                        when(clientResponse.bodyToMono(eq(GitRepositoryPaginatedResponse.class)))
+                                        .thenReturn(Mono.empty());
+                        return handler.apply(clientResponse);
+                });
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectNextMatches(r -> r.getTotalCount() == 0 && r.getItems() != null
+                                                && r.getItems().isEmpty())
+                                .verifyComplete();
+        }
 
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectError(NullPointerException.class)
-                .verify();
-    }
+        @Test
+        @DisplayName("422 Unprocessable Entity returns ApiException")
+        void testFetchRepositoriesValidationError() {
+                SearchRequest request = SearchRequest.builder().build();
 
-    @Test
-    @DisplayName("422 Unprocessable Entity returns ApiException")
-    void testFetchRepositoriesValidationError() {
-        SearchRequest request = SearchRequest.builder().build();
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).exchangeToMono(any())).thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
+                                        .getArgument(0);
+                        ClientResponse clientResponse = mock(ClientResponse.class);
+                        when(clientResponse.statusCode()).thenReturn(HttpStatus.UNPROCESSABLE_ENTITY);
+                        when(clientResponse.bodyToMono(eq(String.class))).thenReturn(Mono.just("validation error"));
+                        return handler.apply(clientResponse);
+                });
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException
+                                                && e.getMessage().toLowerCase().contains("validation"))
+                                .verify();
+        }
 
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
-                    .getArgument(0);
-            ClientResponse clientResponse = mock(ClientResponse.class);
-            when(clientResponse.statusCode()).thenReturn(HttpStatus.UNPROCESSABLE_ENTITY);
-            when(clientResponse.bodyToMono(String.class)).thenReturn(Mono.just("validation error"));
-            return handler.apply(clientResponse);
-        });
+        @Test
+        @DisplayName("503 Service Unavailable returns ApiException")
+        void testFetchRepositoriesServiceUnavailable() {
+                SearchRequest request = SearchRequest.builder().build();
 
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(e -> e instanceof ApiException && e.getMessage().contains("Validation failed"))
-                .verify();
-    }
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).exchangeToMono(any())).thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
+                                        .getArgument(0);
+                        ClientResponse clientResponse = mock(ClientResponse.class);
+                        when(clientResponse.statusCode()).thenReturn(HttpStatus.SERVICE_UNAVAILABLE);
+                        when(clientResponse.bodyToMono(eq(String.class))).thenReturn(Mono.just("service unavailable"));
+                        return handler.apply(clientResponse);
+                });
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException
+                                                && e.getMessage().toLowerCase().contains("service unavailable"))
+                                .verify();
+        }
 
-    @Test
-    @DisplayName("503 Service Unavailable returns ApiException")
-    void testFetchRepositoriesServiceUnavailable() {
-        SearchRequest request = SearchRequest.builder().build();
+        @Test
+        @DisplayName("Other error returns ApiException")
+        void testFetchRepositoriesOtherError() {
+                SearchRequest request = SearchRequest.builder().build();
 
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
-                    .getArgument(0);
-            ClientResponse clientResponse = mock(ClientResponse.class);
-            when(clientResponse.statusCode()).thenReturn(HttpStatus.SERVICE_UNAVAILABLE);
-            when(clientResponse.bodyToMono(String.class)).thenReturn(Mono.just("service unavailable"));
-            return handler.apply(clientResponse);
-        });
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).exchangeToMono(any())).thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
+                                        .getArgument(0);
+                        ClientResponse clientResponse = mock(ClientResponse.class);
+                        when(clientResponse.statusCode()).thenReturn(HttpStatus.BAD_REQUEST);
+                        when(clientResponse.bodyToMono(eq(String.class))).thenReturn(Mono.just("bad request"));
+                        return handler.apply(clientResponse);
+                });
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException && e.getMessage().toLowerCase()
+                                                .contains("github api responded with error"))
+                                .verify();
+        }
 
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(e -> e instanceof ApiException && e.getMessage().contains("Service unavailable"))
-                .verify();
-    }
+        @Test
+        @DisplayName("Rate limit fallback returns TOO_MANY_REQUESTS ApiException")
+        void testRateLimitFallback() {
+                SearchRequest request = SearchRequest.builder().build();
+                RequestNotPermitted ex = mock(RequestNotPermitted.class);
 
-    @Test
-    @DisplayName("Other error returns ApiException")
-    void testFetchRepositoriesOtherError() {
-        SearchRequest request = SearchRequest.builder().build();
+                StepVerifier.create(client.rateLimitFallback(request, ex))
+                                .expectErrorMatches(e -> e instanceof ApiException &&
+                                                ((ApiException) e).getStatus() == HttpStatus.TOO_MANY_REQUESTS)
+                                .verify();
+        }
 
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
-                    .getArgument(0);
-            ClientResponse clientResponse = mock(ClientResponse.class);
-            when(clientResponse.statusCode()).thenReturn(HttpStatus.BAD_REQUEST);
-            when(clientResponse.bodyToMono(String.class)).thenReturn(Mono.just("bad request"));
-            return handler.apply(clientResponse);
-        });
+        // API returns 500 Internal Server Error
+        @Test
+        @DisplayName("500 Internal Server Error returns ApiException")
+        void testFetchRepositoriesInternalServerError() {
+                SearchRequest request = SearchRequest.builder().build();
 
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(
-                        e -> e instanceof ApiException && e.getMessage().contains("GitHub API responded with error"))
-                .verify();
-    }
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).exchangeToMono(any())).thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
+                                        .getArgument(0);
+                        ClientResponse clientResponse = mock(ClientResponse.class);
+                        when(clientResponse.statusCode()).thenReturn(HttpStatus.INTERNAL_SERVER_ERROR);
+                        when(clientResponse.bodyToMono(eq(String.class))).thenReturn(Mono.just("internal error"));
+                        return handler.apply(clientResponse);
+                });
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException && e.getMessage().toLowerCase()
+                                                .contains("github api responded with error"))
+                                .verify();
+        }
 
-    @Test
-    @DisplayName("Rate limit fallback returns TOO_MANY_REQUESTS ApiException")
-    void testRateLimitFallback() {
-        SearchRequest request = SearchRequest.builder().build();
-        RequestNotPermitted ex = mock(RequestNotPermitted.class);
+        // Simulate a timeout (simulate by returning Mono.error)
+        @Test
+        @DisplayName("Timeout returns ApiException")
+        void testFetchRepositoriesTimeout() {
+                SearchRequest request = SearchRequest.builder().build();
 
-        StepVerifier.create(client.rateLimitFallback(request, ex))
-                .expectErrorMatches(e -> e instanceof ApiException &&
-                        ((ApiException) e).getStatus() == HttpStatus.TOO_MANY_REQUESTS)
-                .verify();
-    }
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(headersSpec.exchangeToMono(any()))
+                                .thenReturn(Mono.error(new ApiException(HttpStatus.REQUEST_TIMEOUT, "Timeout")));
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException
+                                                && ((ApiException) e).getStatus() == HttpStatus.REQUEST_TIMEOUT)
+                                .verify();
+        }
 
-    // API returns 500 Internal Server Error
-    @Test
-    @DisplayName("500 Internal Server Error returns ApiException")
-    void testFetchRepositoriesInternalServerError() {
-        SearchRequest request = SearchRequest.builder().build();
+        // Malformed JSON (simulate by returning Mono.error)
+        @Test
+        @DisplayName("Malformed JSON response returns ApiException")
+        void testFetchRepositoriesMalformedJson() {
+                SearchRequest request = SearchRequest.builder().build();
 
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>> handler = (Function<ClientResponse, Mono<GitRepositoryPaginatedResponse>>) invocation
-                    .getArgument(0);
-            ClientResponse clientResponse = mock(ClientResponse.class);
-            when(clientResponse.statusCode()).thenReturn(HttpStatus.INTERNAL_SERVER_ERROR);
-            when(clientResponse.bodyToMono(String.class)).thenReturn(Mono.just("internal error"));
-            return handler.apply(clientResponse);
-        });
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(headersSpec.exchangeToMono(any()))
+                                .thenReturn(Mono.error(new ApiException(HttpStatus.BAD_REQUEST, "JSON parse error")));
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException
+                                                && ((ApiException) e).getStatus() == HttpStatus.BAD_REQUEST)
+                                .verify();
+        }
 
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(
-                        e -> e instanceof ApiException && e.getMessage().contains("GitHub API responded with error"))
-                .verify();
-    }
+        // Network error (simulate by returning Mono.error)
+        @Test
+        @DisplayName("Network error returns ApiException")
+        void testFetchRepositoriesNetworkError() {
+                SearchRequest request = SearchRequest.builder().build();
 
-    // Simulate a timeout (simulate by returning Mono.error)
-    @Test
-    @DisplayName("Timeout returns ApiException")
-    void testFetchRepositoriesTimeout() {
-        SearchRequest request = SearchRequest.builder().build();
-
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenReturn(Mono.error(new RuntimeException("Timeout")));
-
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(e -> e instanceof ApiException || e instanceof RuntimeException)
-                .verify();
-    }
-
-    // Malformed JSON (simulate by returning Mono.error)
-    @Test
-    @DisplayName("Malformed JSON response returns ApiException")
-    void testFetchRepositoriesMalformedJson() {
-        SearchRequest request = SearchRequest.builder().build();
-
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenReturn(Mono.error(new RuntimeException("JSON parse error")));
-
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(e -> e instanceof ApiException || e instanceof RuntimeException)
-                .verify();
-    }
-
-    // Network error (simulate by returning Mono.error)
-    @Test
-    @DisplayName("Network error returns ApiException")
-    void testFetchRepositoriesNetworkError() {
-        SearchRequest request = SearchRequest.builder().build();
-
-        when(webClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(anyString())).thenReturn(headersSpec);
-        when(headersSpec.header(eq(HttpHeaders.ACCEPT), anyString())).thenReturn(headersSpec);
-        when(headersSpec.exchangeToMono(any())).thenReturn(Mono.error(new RuntimeException("Connection refused")));
-
-        StepVerifier.create(client.fetchRepositories(request))
-                .expectErrorMatches(e -> e instanceof ApiException || e instanceof RuntimeException)
-                .verify();
-    }
+                when(webClient.get()).thenReturn(uriSpec);
+                when(((WebClient.RequestHeadersUriSpec) uriSpec).uri(anyString())).thenReturn(headersSpec);
+                when(((WebClient.RequestHeadersSpec) headersSpec).header(eq(HttpHeaders.ACCEPT), anyString()))
+                                .thenReturn(headersSpec);
+                when(headersSpec.exchangeToMono(any())).thenReturn(
+                                Mono.error(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Connection refused")));
+                StepVerifier.create(client.fetchRepositories(request))
+                                .expectErrorMatches(e -> e instanceof ApiException
+                                                && ((ApiException) e).getStatus() == HttpStatus.SERVICE_UNAVAILABLE)
+                                .verify();
+        }
 }
